@@ -2,10 +2,15 @@ package sk.fourq.calllog;
 
 import android.Manifest;
 import android.annotation.TargetApi;
+import android.content.Context;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.os.Build;
 import android.provider.CallLog;
+import android.provider.ContactsContract;
+import android.telephony.PhoneNumberUtils;
+import android.telephony.TelephonyManager;
+
 import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
@@ -134,10 +139,20 @@ public class CallLogPlugin implements MethodCallHandler, PluginRegistry.RequestP
             CallLog.Calls.DURATION,
             CallLog.Calls.CACHED_NAME,
             CallLog.Calls.CACHED_NUMBER_TYPE,
-            CallLog.Calls.CACHED_NUMBER_LABEL
+            CallLog.Calls.CACHED_NUMBER_LABEL,
+    };
+
+    private static final String[] CONTACT_PROJECTION = {
+            ContactsContract.Data.RAW_CONTACT_ID,
+            ContactsContract.Data.DISPLAY_NAME_PRIMARY,
+            ContactsContract.Data.CONTACT_ID,
+            ContactsContract.Data.PHOTO_URI,
+            ContactsContract.Data.PHOTO_THUMBNAIL_URI,
     };
 
     private void queryLogs(String query) {
+        TelephonyManager tm = (TelephonyManager) registrar.activeContext().getSystemService(Context.TELEPHONY_SERVICE);
+        String countryCode = tm.getSimCountryIso().toUpperCase();
         try (Cursor cursor = registrar.context().getContentResolver().query(
                 CallLog.Calls.CONTENT_URI,
                 PROJECTION,
@@ -156,8 +171,45 @@ public class CallLogPlugin implements MethodCallHandler, PluginRegistry.RequestP
                 map.put("name", cursor.getString(5));
                 map.put("cachedNumberType", cursor.getInt(6));
                 map.put("cachedNumberLabel", cursor.getInt(7));
+
+
+                // Get Contact Info
+                Cursor mContactCursor;
+                String number = cursor.getString(1);
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP && !countryCode.isEmpty()) {
+                    number = PhoneNumberUtils.formatNumberToE164(number, countryCode);
+                    number = PhoneNumberUtils.normalizeNumber(number);
+                }
+                String[] mSelectionArgsContact = { "%" + number + "%"};
+                mContactCursor = registrar.context().getContentResolver().query(
+                        ContactsContract.Data.CONTENT_URI,
+                        CONTACT_PROJECTION,
+                        ContactsContract.CommonDataKinds.Phone.NORMALIZED_NUMBER + " LIKE ? ",
+                        mSelectionArgsContact,
+                        null
+                );
+                if(mContactCursor.moveToFirst()) {
+                    if(!mContactCursor.isAfterLast()) {
+                        map.put("contactRawId", mContactCursor.getString(0));
+                        map.put("contactName", mContactCursor.getString(1));
+                        map.put("contactId", mContactCursor.getInt(2));
+                        map.put("contactPhoto", mContactCursor.getString(3));
+                        map.put("contactThumbPhoto", mContactCursor.getString(4));
+                    }
+                }else {
+                    map.put("contactRawId", null);
+                    map.put("contactName", null);
+                    map.put("contactId", null);
+                    map.put("contactPhoto", null);
+                    map.put("contactThumbPhoto", null);
+                }
+
+//                System.out.println(map);
+
                 entries.add(map);
             }
+
+
             result.success(entries);
             cleanup();
         } catch (Exception e) {

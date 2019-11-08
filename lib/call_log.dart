@@ -51,6 +51,7 @@ class CallLogEntry {
     this.callType,
     this.duration,
     this.timestamp,
+    this.contactId,
   });
 
   String name;
@@ -60,6 +61,12 @@ class CallLogEntry {
   int duration;
   int timestamp;
 
+  int contactId;
+  String contactRawId;
+  String contactPhotoUri;
+  String contactPhotoThumbUri;
+
+
   CallLogEntry.fromMap(Map m) {
     name = m['name'];
     number = m['number'];
@@ -67,6 +74,17 @@ class CallLogEntry {
     callType = CallType.values[m['callType'] - 1];
     duration = m['duration'];
     timestamp = m['timestamp'];
+    contactId = m['contactId'];
+    contactRawId = m['contactName'];
+    contactPhotoUri = m['contactPhoto'];
+    contactPhotoThumbUri = m['contactThumbPhoto'];
+
+
+  }
+
+  @override
+  toString() {
+    return 'CallLogEntry: name: $name | number: $number | formattedNumber: $formattedNumber | callType: $callType | duration: $duration | timestamp: $timestamp | contactId: $contactId';
   }
 }
 
